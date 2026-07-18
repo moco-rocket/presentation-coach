@@ -7,10 +7,12 @@ import Testing
     _ = NSApplication.shared
     var started = false
     var stopped = false
+    var showedPermissions = false
     var quit = false
     let controller = MenuBarController(
         onStart: { started = true },
         onStop: { stopped = true },
+        onShowPermissions: { showedPermissions = true },
         onQuit: { quit = true }
     )
     defer { controller.remove() }
@@ -21,10 +23,12 @@ import Testing
 
     controller.startPractice()
     controller.stopPractice()
+    controller.showPermissions()
     controller.quitApplication()
 
     #expect(started)
     #expect(stopped)
+    #expect(showedPermissions)
     #expect(quit)
 }
 

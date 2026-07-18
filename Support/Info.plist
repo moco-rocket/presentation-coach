@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>ja</string>
+    <key>CFBundleDisplayName</key>
+    <string>Presentation Coach</string>
+    <key>CFBundleExecutable</key>
+    <string>PresentationApp</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.mocorocket.presentation-coach.dev</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Presentation Coach</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>発表中の音量、無音、話速を分析してリアルタイムに助言するため、マイクを使用します。</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>発表内容を分析するため、共有された画面の音声を使用します。</string>
+</dict>
+</plist>

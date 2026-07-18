@@ -13,6 +13,7 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
 
     private var automaticTerminationTimer: Timer?
     private var menuBarController: MenuBarController?
+    private var permissionGuideController: PermissionGuideWindowController?
     private var liveSessionID: UUID?
     private var liveSessionStartedAt: Date?
     private var hasShutDown = false
@@ -107,9 +108,12 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
     }
 
     private func installMenuBarController() {
+        let permissionGuideController = PermissionGuideWindowController()
+        self.permissionGuideController = permissionGuideController
         menuBarController = MenuBarController(
             onStart: { [weak self] in self?.startPractice() },
             onStop: { [weak self] in self?.stopPractice() },
+            onShowPermissions: { [weak permissionGuideController] in permissionGuideController?.show() },
             onQuit: { [weak application] in application?.terminate(nil) }
         )
     }
@@ -162,6 +166,8 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
         overlayController.hide()
         menuBarController?.remove()
         menuBarController = nil
+        permissionGuideController?.close()
+        permissionGuideController = nil
     }
 }
 

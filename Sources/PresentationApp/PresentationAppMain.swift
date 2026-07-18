@@ -19,6 +19,15 @@ enum PresentationAppMain {
         }
 
         let configuration = try ApplicationConfiguration(arguments: arguments)
+        if configuration.mode == .idle,
+           Bundle.main.bundleURL.pathExtension.lowercased() != "app" {
+            fputs(
+                "Presentation Coachの通常起動にはmacOSアプリバンドルが必要です。\n" +
+                "./scripts/run-app.sh を実行してください。\n",
+                stderr
+            )
+            return
+        }
         try await MainActor.run {
             let application = try PresentationMacApplication(configuration: configuration)
             application.run()
