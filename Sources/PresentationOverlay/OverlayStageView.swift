@@ -15,7 +15,7 @@ public struct OverlayStageView: View {
 
     public var body: some View {
         ZStack(alignment: .top) {
-            SpriteView(scene: scene, options: [.allowsTransparency])
+            TransparentSpriteView(scene: scene)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if let reaction = viewModel.activeReaction,
@@ -39,6 +39,38 @@ public struct OverlayStageView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("発表審査員オーバーレイ")
     }
+}
+
+/// SwiftUI's `SpriteView` may install an opaque backing layer even when the
+/// SpriteKit scene is clear. Owning the `SKView` lets every layer in the
+/// window explicitly opt in to transparency.
+private struct TransparentSpriteView: NSViewRepresentable {
+    let scene: SKScene
+
+    func makeNSView(context: Context) -> SKView {
+        let view = TransparentSKView(frame: .zero)
+        view.allowsTransparency = true
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.clear.cgColor
+        view.presentScene(scene)
+        return view
+    }
+
+    func updateNSView(_ view: SKView, context: Context) {
+        view.allowsTransparency = true
+        view.layer?.backgroundColor = NSColor.clear.cgColor
+        if view.scene !== scene {
+            view.presentScene(scene)
+        }
+    }
+}
+
+private final class TransparentSKView: SKView {
+    override var isOpaque: Bool { false }
+}
+
+private final class TransparentHostingView<Content: View>: NSHostingView<Content> {
+    override var isOpaque: Bool { false }
 }
 
 private struct SpeechBubble: View {
@@ -122,7 +154,10 @@ public final class OverlayPanelController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.ignoresMouseEvents = true
         panel.hidesOnDeactivate = false
-        panel.contentView = NSHostingView(rootView: OverlayStageView(viewModel: viewModel))
+        let hostingView = TransparentHostingView(rootView: OverlayStageView(viewModel: viewModel))
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+        panel.contentView = hostingView
     }
 
     public func show() {

@@ -11,7 +11,7 @@ public enum FixtureTimelineError: Error, Equatable {
 @MainActor
 public final class FixtureTimeline {
     public let events: [PresentationEvent]
-    private var playbackTask: Task<Void, Never>?
+    private var playbackTimers: [Timer] = []
 
     public init(events: [PresentationEvent]) {
         self.events = events.sorted { lhs, rhs in
@@ -49,20 +49,16 @@ public final class FixtureTimeline {
         guard speed.isFinite, speed > 0 else { throw FixtureTimelineError.invalidSpeed }
         stop()
 
-        let events = self.events
-        playbackTask = Task { @MainActor in
-            var previousTimestamp = events.first?.timestampMs ?? 0
-            for event in events {
-                guard !Task.isCancelled else { return }
-                let delta = max(0, event.timestampMs - previousTimestamp)
-                if delta > 0 {
-                    let adjustedMilliseconds = Int64((Double(delta) / speed).rounded())
-                    try? await Task.sleep(for: .milliseconds(adjustedMilliseconds))
-                    guard !Task.isCancelled else { return }
+        let origin = events.first?.timestampMs ?? 0
+        playbackTimers = events.map { event in
+            let delayMilliseconds = Double(max(0, event.timestampMs - origin)) / speed
+            let timer = Timer(timeInterval: delayMilliseconds / 1_000, repeats: false) { _ in
+                MainActor.assumeIsolated {
+                    onEvent(event)
                 }
-                onEvent(event)
-                previousTimestamp = event.timestampMs
             }
+            RunLoop.main.add(timer, forMode: .common)
+            return timer
         }
     }
 
@@ -74,11 +70,8 @@ public final class FixtureTimeline {
     }
 
     public func stop() {
-        playbackTask?.cancel()
-        playbackTask = nil
+        playbackTimers.forEach { $0.invalidate() }
+        playbackTimers.removeAll()
     }
 
-    deinit {
-        playbackTask?.cancel()
-    }
 }

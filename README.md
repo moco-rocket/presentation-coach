@@ -20,8 +20,11 @@
 swift test
 swift run PresentationApp
 swift run PresentationApp --demo
+swift run PresentationApp --ui-demo
 ```
 
 `--demo` はルール候補と疑似LLM候補を競合させ、選択された吹き出し、基礎スコア、保存したJSONLの場所を表示します。
+
+`--ui-demo` は画面下部に透明オーバーレイを表示し、`Fixtures/Sessions/ui-demo.jsonl` の審査員リアクションを再生して自動終了します。素早く確認する場合は `--ui-demo-speed 10` を追加できます。
 
 設計、分担、性能目標は [`plan.md`](plan.md) を参照してください。
