@@ -6,9 +6,10 @@
 
 - Swift 6の共有イベント契約
 - AVAudioEngineによるマイク入力とRMS・無音計測
-- ScreenCaptureKitの画面ソース列挙
+- ScreenCaptureKit、差分検出、Vision OCRによるスライド解析
+- Apple Speechによる日本語の部分・確定文字起こし
 - ルールベースの低遅延コメント候補
-- 非同期・キャンセル可能なLLMコメント生成インターフェースと疑似実装
+- OpenAI Responses APIとルールの並行コメント生成
 - 期限、クールダウン、重複、優先度を扱うフィードバックディレクター
 - SwiftUI・SpriteKitの4人審査員オーバーレイ
 - JSONLの記録、再生、UI Fixture
@@ -29,9 +30,11 @@ swift run PresentationApp --ui-demo
 `--ui-demo` は画面下部に透明オーバーレイを表示し、`Fixtures/Sessions/ui-demo.jsonl` の審査員リアクションを再生して自動終了します。素早く確認する場合は `--ui-demo-speed 10` を追加できます。
 
 引数なしで起動するとメニューバーに常駐します。メニューの「練習を開始」「練習を停止」からオーバーレイを操作できます。
-「権限を確認…」では、マイクと画面収録の状態確認、許可要求、システム設定への移動ができます。
+「権限を確認…」では、マイク、音声認識、画面収録の状態確認、許可要求、システム設定への移動ができます。
 通常起動とmacOS権限の確認には、安定したBundle IDと権限説明文を含む開発用`.app`が必要なため、`./scripts/run-app.sh`を使用してください。`swift run PresentationApp --ui-demo`はFixtureによるUI確認専用です。
 
 マイク・画面収録をmacOSへ登録するには、XcodeでApple IDにサインインして作成した`Apple Development`証明書が必要です。`scripts/run-app.sh`はKeychain内の証明書を自動選択します。複数ある場合は`PRESENTATION_COACH_SIGNING_IDENTITY`で指定できます。
+
+リアルタイムLLMコメントを有効にする場合は、起動前に`OPENAI_API_KEY`を設定してください。任意で`OPENAI_MODEL`も指定できます（既定値は`gpt-5-mini`）。`scripts/run-app.sh`はこれらを起動する`.app`へ引き継ぎます。未設定や通信失敗でもルールベースのコメントは継続します。
 
 設計、分担、性能目標は [`plan.md`](plan.md) を参照してください。

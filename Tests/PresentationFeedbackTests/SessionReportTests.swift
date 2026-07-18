@@ -68,3 +68,34 @@ import Testing
         try SessionReportBuilder.build(from: [])
     }
 }
+
+@Test func reportBuilderUsesLatestPartialWhenRecognizerHasNotFinalized() throws {
+    let sessionID = UUID()
+    let events = [
+        PresentationEvent(
+            sessionID: sessionID,
+            timestampMs: 0,
+            kind: .sessionStarted,
+            payload: .session(SessionDescriptor(
+                title: "短い練習", goal: "", audience: "", plannedDurationSeconds: 10
+            ))
+        ),
+        PresentationEvent(
+            sessionID: sessionID,
+            timestampMs: 2_000,
+            kind: .speechPartial,
+            payload: .speech(SpeechSegment(text: "まず結論です", startedAtMs: 500))
+        ),
+        PresentationEvent(
+            sessionID: sessionID,
+            timestampMs: 4_000,
+            kind: .sessionStopped,
+            payload: .none
+        )
+    ]
+
+    let report = try SessionReportBuilder.build(from: events)
+
+    #expect(report.metrics.spokenDurationSeconds == 3)
+    #expect(report.metrics.structureMarkerCount == 2)
+}

@@ -34,9 +34,15 @@ public enum SessionReportBuilder {
         let endedAtMs = ordered.last(where: { $0.kind == .sessionStopped })?.timestampMs
             ?? ordered.last?.timestampMs
             ?? started.timestampMs
-        let speechSegments = ordered.compactMap { event -> SpeechSegment? in
+        var speechSegments = ordered.compactMap { event -> SpeechSegment? in
             guard event.kind == .speechFinal, case .speech(let segment) = event.payload else { return nil }
             return segment
+        }
+        if speechSegments.isEmpty,
+           let lastPartial = ordered.last(where: { $0.kind == .speechPartial }),
+           case .speech(var segment) = lastPartial.payload {
+            segment.endedAtMs = endedAtMs
+            speechSegments = [segment]
         }
         let transcript = speechSegments.map(\.text).joined(separator: " ")
         let spokenMilliseconds = speechSegments.reduce(Int64(0)) { total, segment in

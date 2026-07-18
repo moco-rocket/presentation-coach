@@ -51,4 +51,11 @@ codesign \
     "$application_path"
 
 echo "Opening $application_path"
-open "$application_path"
+open_arguments=(--new)
+if [[ -n "${OPENAI_API_KEY:-}" ]]; then
+    open_arguments+=(--env "OPENAI_API_KEY=$OPENAI_API_KEY")
+fi
+if [[ -n "${OPENAI_MODEL:-}" ]]; then
+    open_arguments+=(--env "OPENAI_MODEL=$OPENAI_MODEL")
+fi
+open "${open_arguments[@]}" "$application_path"
