@@ -21,6 +21,7 @@ swift test
 swift run PresentationApp
 swift run PresentationApp --demo
 swift run PresentationApp --ui-demo
+./scripts/run-app.sh
 ```
 
 `--demo` はルール候補と疑似LLM候補を競合させ、選択された吹き出し、基礎スコア、保存したJSONLの場所を表示します。
@@ -29,5 +30,6 @@ swift run PresentationApp --ui-demo
 
 引数なしで起動するとメニューバーに常駐します。メニューの「練習を開始」「練習を停止」からオーバーレイを操作できます。
 「権限を確認…」では、マイクと画面収録の状態確認、許可要求、システム設定への移動ができます。
+macOSの権限を実際に許可する場合は、安定したBundle IDと権限説明文を含む開発用`.app`が必要なため、`./scripts/run-app.sh`で起動してください。`swift run PresentationApp`は権限を使わないUI確認用です。
 
 設計、分担、性能目標は [`plan.md`](plan.md) を参照してください。

@@ -59,7 +59,7 @@ final class SystemPermissionService: PermissionServicing {
         switch permission {
         case .microphone:
             guard Bundle.main.object(forInfoDictionaryKey: "NSMicrophoneUsageDescription") != nil else {
-                openSettings(for: permission)
+                showBundleRequiredAlert()
                 return state(for: permission)
             }
             _ = await AVCaptureDevice.requestAccess(for: .audio)
@@ -73,7 +73,19 @@ final class SystemPermissionService: PermissionServicing {
         guard let url = URL(
             string: "x-apple.systempreferences:com.apple.preference.security?\(permission.settingsPane)"
         ) else { return }
-        NSWorkspace.shared.open(url)
+        if !NSWorkspace.shared.open(url),
+           let fallbackURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
+            NSWorkspace.shared.open(fallbackURL)
+        }
+    }
+
+    private func showBundleRequiredAlert() {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "開発用アプリから起動してください"
+        alert.informativeText = "swift runではmacOSの権限を登録できません。ターミナルで ./scripts/run-app.sh を実行してから、もう一度お試しください。"
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 }
 

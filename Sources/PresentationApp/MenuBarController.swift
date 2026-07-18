@@ -35,8 +35,14 @@ final class MenuBarController: NSObject {
         statusMenuItem.title = isRunning ? "練習中" : "待機中"
         startMenuItem.isEnabled = !isRunning
         stopMenuItem.isEnabled = isRunning
+        let symbolName = isRunning ? "record.circle.fill" : "person.3.sequence.fill"
+        let description = isRunning ? "Presentation Coach — 練習中" : "Presentation Coach — 待機中"
+        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: description)
+        image?.isTemplate = true
+        statusItem.button?.image = image
+        statusItem.button?.contentTintColor = nil
         statusItem.button?.appearsDisabled = false
-        statusItem.button?.contentTintColor = isRunning ? .systemRed : nil
+        statusItem.button?.toolTip = description
     }
 
     func remove() {
@@ -60,11 +66,7 @@ final class MenuBarController: NSObject {
     }
 
     private func configureButton() {
-        statusItem.button?.image = NSImage(
-            systemSymbolName: "person.3.sequence.fill",
-            accessibilityDescription: "Presentation Coach"
-        )
-        statusItem.button?.toolTip = "Presentation Coach"
+        statusItem.button?.toolTip = "Presentation Coach — 待機中"
     }
 
     private func configureMenu() {
