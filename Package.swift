@@ -61,6 +61,10 @@ let package = Package(
                 "PresentationCapture",
                 "PresentationFeedback"
             ]
+        ),
+        .testTarget(
+            name: "PresentationAppTests",
+            dependencies: ["PresentationApp"]
         )
     ]
 )
