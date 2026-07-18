@@ -142,7 +142,8 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
                 isPracticeRunning = true
                 overlayController.show()
                 menuBarController?.setSessionRunning(true)
-            } catch LivePracticeCoordinatorError.microphonePermissionRequired {
+            } catch LivePracticeCoordinatorError.microphonePermissionRequired,
+                    LivePracticeCoordinatorError.screenRecordingPermissionRequired {
                 permissionGuideController?.show()
             } catch {
                 showError(error)

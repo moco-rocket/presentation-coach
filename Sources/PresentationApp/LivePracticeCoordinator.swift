@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreGraphics
 import Foundation
 import PresentationCapture
 import PresentationContracts
@@ -10,6 +11,7 @@ final class LivePracticeCoordinator {
     private let recordingDirectory: URL
     private var pipeline: LivePracticePipeline?
     private var microphone: MicrophoneEventSource?
+    private var screenCapture: ScreenCaptureSource?
 
     private(set) var recordingURL: URL?
 
@@ -22,6 +24,9 @@ final class LivePracticeCoordinator {
         guard pipeline == nil else { throw LivePracticeCoordinatorError.alreadyRunning }
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
             throw LivePracticeCoordinatorError.microphonePermissionRequired
+        }
+        guard CGPreflightScreenCaptureAccess() else {
+            throw LivePracticeCoordinatorError.screenRecordingPermissionRequired
         }
 
         let sessionID = UUID()
@@ -38,22 +43,38 @@ final class LivePracticeCoordinator {
         let microphone = MicrophoneEventSource(sessionID: sessionID) { event in
             Task { try? await pipeline.ingest(event) }
         }
+        let screenCapture = ScreenCaptureSource()
+        let slideAnalyzer = SlideFrameAnalyzer()
 
         do {
             try microphone.start()
+            try await screenCapture.start(displayID: CGMainDisplayID()) { frame in
+                guard let slide = try? await slideAnalyzer.analyze(frame) else { return }
+                try? await pipeline.ingest(PresentationEvent(
+                    sessionID: sessionID,
+                    timestampMs: frame.timestampMs,
+                    kind: .slideChanged,
+                    payload: .slideChange(slide)
+                ))
+            }
         } catch {
+            microphone.stop()
+            await screenCapture.stop()
             try? await pipeline.stop()
             throw error
         }
 
         self.pipeline = pipeline
         self.microphone = microphone
+        self.screenCapture = screenCapture
         self.recordingURL = recordingURL
     }
 
     func stop() async {
         microphone?.stop()
         microphone = nil
+        await screenCapture?.stop()
+        screenCapture = nil
         guard let pipeline else { return }
         try? await pipeline.stop()
         self.pipeline = nil
@@ -71,11 +92,13 @@ final class LivePracticeCoordinator {
 enum LivePracticeCoordinatorError: Error, LocalizedError, Equatable {
     case alreadyRunning
     case microphonePermissionRequired
+    case screenRecordingPermissionRequired
 
     var errorDescription: String? {
         switch self {
         case .alreadyRunning: "練習はすでに開始しています。"
         case .microphonePermissionRequired: "練習を開始するにはマイクの許可が必要です。"
+        case .screenRecordingPermissionRequired: "練習を開始するには画面収録の許可が必要です。"
         }
     }
 }
