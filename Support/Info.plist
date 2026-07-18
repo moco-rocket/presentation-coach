@@ -28,6 +28,8 @@
     <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>発表中の音量、無音、話速を分析してリアルタイムに助言するため、マイクを使用します。</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>発表内容を文字起こしし、その場のコメントと終了後の改善提案を作るため、音声認識を使用します。</string>
     <key>NSAudioCaptureUsageDescription</key>
     <string>発表内容を分析するため、共有された画面の音声を使用します。</string>
 </dict>

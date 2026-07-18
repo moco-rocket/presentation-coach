@@ -2,15 +2,36 @@ import AppKit
 import AVFoundation
 import CoreGraphics
 import Security
+import Speech
 import SwiftUI
 
 enum PracticePermission: String, CaseIterable, Identifiable {
     case microphone
+    case speechRecognition
     case screenRecording
 
     var id: Self { self }
-    var title: String { self == .microphone ? "マイク" : "画面収録" }
-    var settingsPane: String { self == .microphone ? "Privacy_Microphone" : "Privacy_ScreenCapture" }
+    var title: String {
+        switch self {
+        case .microphone: "マイク"
+        case .speechRecognition: "音声認識"
+        case .screenRecording: "画面収録"
+        }
+    }
+    var settingsPane: String {
+        switch self {
+        case .microphone: "Privacy_Microphone"
+        case .speechRecognition: "Privacy_SpeechRecognition"
+        case .screenRecording: "Privacy_ScreenCapture"
+        }
+    }
+    var iconName: String {
+        switch self {
+        case .microphone: "mic.fill"
+        case .speechRecognition: "waveform.and.magnifyingglass"
+        case .screenRecording: "rectangle.inset.filled"
+        }
+    }
 }
 
 enum PermissionState: Equatable {
@@ -50,6 +71,14 @@ final class SystemPermissionService: PermissionServicing {
             case .authorized: .granted
             @unknown default: .restricted
             }
+        case .speechRecognition:
+            return switch SFSpeechRecognizer.authorizationStatus() {
+            case .notDetermined: .notDetermined
+            case .restricted: .restricted
+            case .denied: .denied
+            case .authorized: .granted
+            @unknown default: .restricted
+            }
         case .screenRecording:
             if CGPreflightScreenCaptureAccess() { return .granted }
             return screenRequestWasDenied ? .denied : .notDetermined
@@ -69,6 +98,14 @@ final class SystemPermissionService: PermissionServicing {
                 return state(for: permission)
             }
             _ = await AVCaptureDevice.requestAccess(for: .audio)
+        case .speechRecognition:
+            guard Bundle.main.object(forInfoDictionaryKey: "NSSpeechRecognitionUsageDescription") != nil else {
+                showBundleRequiredAlert()
+                return state(for: permission)
+            }
+            await withCheckedContinuation { continuation in
+                SFSpeechRecognizer.requestAuthorization { _ in continuation.resume() }
+            }
         case .screenRecording:
             screenRequestWasDenied = !CGRequestScreenCaptureAccess()
         }
@@ -172,12 +209,12 @@ private struct PermissionGuideView: View {
         VStack(alignment: .leading, spacing: 18) {
             Text("発表を見守るための権限")
                 .font(.title2.bold())
-            Text("音声への反応にはマイク、スライド解析には画面収録の許可が必要です。")
+            Text("音量にはマイク、発表内容には音声認識、スライド解析には画面収録の許可が必要です。")
                 .foregroundStyle(.secondary)
 
             ForEach(PracticePermission.allCases) { permission in
                 HStack(spacing: 14) {
-                    Image(systemName: permission == .microphone ? "mic.fill" : "rectangle.inset.filled")
+                    Image(systemName: permission.iconName)
                         .frame(width: 24)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(permission.title).font(.headline)
@@ -233,7 +270,7 @@ final class PermissionGuideWindowController: NSWindowController {
     init(viewModel: PermissionGuideViewModel = PermissionGuideViewModel()) {
         self.viewModel = viewModel
         let window = NSWindow(
-            contentRect: CGRect(x: 0, y: 0, width: 520, height: 360),
+            contentRect: CGRect(x: 0, y: 0, width: 520, height: 440),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false

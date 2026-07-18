@@ -5,6 +5,7 @@ import PresentationCapture
 import PresentationContracts
 import PresentationFeedback
 import PresentationOverlay
+import Speech
 
 @MainActor
 final class LivePracticeCoordinator {
@@ -29,6 +30,9 @@ final class LivePracticeCoordinator {
         guard CGPreflightScreenCaptureAccess() else {
             throw LivePracticeCoordinatorError.screenRecordingPermissionRequired
         }
+        guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
+            throw LivePracticeCoordinatorError.speechRecognitionPermissionRequired
+        }
 
         let sessionID = UUID()
         let recordingURL = recordingDirectory.appendingPathComponent("\(sessionID.uuidString).jsonl")
@@ -43,7 +47,10 @@ final class LivePracticeCoordinator {
         }
 
         try await pipeline.start(descriptor: descriptor)
-        let microphone = MicrophoneEventSource(sessionID: sessionID) { event in
+        let transcriber = AppleSpeechTranscriber(sessionID: sessionID) { event in
+            Task { try? await pipeline.ingest(event) }
+        }
+        let microphone = MicrophoneEventSource(sessionID: sessionID, transcriber: transcriber) { event in
             Task { try? await pipeline.ingest(event) }
         }
         let screenCapture = ScreenCaptureSource()
@@ -99,12 +106,14 @@ enum LivePracticeCoordinatorError: Error, LocalizedError, Equatable {
     case alreadyRunning
     case microphonePermissionRequired
     case screenRecordingPermissionRequired
+    case speechRecognitionPermissionRequired
 
     var errorDescription: String? {
         switch self {
         case .alreadyRunning: "練習はすでに開始しています。"
         case .microphonePermissionRequired: "練習を開始するにはマイクの許可が必要です。"
         case .screenRecordingPermissionRequired: "練習を開始するには画面収録の許可が必要です。"
+        case .speechRecognitionPermissionRequired: "練習を開始するには音声認識の許可が必要です。"
         }
     }
 }

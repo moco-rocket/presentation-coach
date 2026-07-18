@@ -20,6 +20,7 @@ actor LivePracticePipeline {
     private var lastLLMRequestMs: Int64?
     private var descriptor: SessionDescriptor?
     private var recentTranscript: [(timestampMs: Int64, text: String)] = []
+    private var currentPartialTranscript = ""
     private var currentSlideOCR: String?
     private var remainingSeconds = 0
     private var recentDisplayedComments: [String] = []
@@ -100,6 +101,7 @@ actor LivePracticePipeline {
         lastLLMRequestMs = nil
         descriptor = nil
         recentTranscript.removeAll()
+        currentPartialTranscript = ""
         currentSlideOCR = nil
         remainingSeconds = 0
         recentDisplayedComments.removeAll()
@@ -139,9 +141,14 @@ actor LivePracticePipeline {
 
     private func updateLLMContext(with event: PresentationEvent) {
         switch event.payload {
-        case let .speech(segment) where event.kind == .speechFinal:
-            recentTranscript.append((event.timestampMs, segment.text))
-            recentTranscript.removeAll { event.timestampMs - $0.timestampMs > 30_000 }
+        case let .speech(segment):
+            if event.kind == .speechFinal {
+                recentTranscript.append((event.timestampMs, segment.text))
+                recentTranscript.removeAll { event.timestampMs - $0.timestampMs > 30_000 }
+                currentPartialTranscript = ""
+            } else if event.kind == .speechPartial {
+                currentPartialTranscript = segment.text
+            }
         case let .slideChange(slide):
             currentSlideOCR = slide.ocrText
         case let .timer(timer):
@@ -155,7 +162,7 @@ actor LivePracticePipeline {
     }
 
     private func scheduleLLMIfNeeded(for event: PresentationEvent) {
-        guard event.kind == .speechFinal || event.kind == .slideChanged,
+        guard event.kind == .speechPartial || event.kind == .speechFinal || event.kind == .slideChanged,
               let commentGenerator,
               let descriptor else { return }
         if let lastLLMRequestMs,
@@ -163,7 +170,9 @@ actor LivePracticePipeline {
             return
         }
 
-        let transcript = recentTranscript.map(\.text).joined(separator: " ")
+        let transcript = (recentTranscript.map(\.text) + [currentPartialTranscript])
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
         guard !transcript.isEmpty || !(currentSlideOCR ?? "").isEmpty else { return }
         lastLLMRequestMs = event.timestampMs
         let context = CommentGenerationContext(

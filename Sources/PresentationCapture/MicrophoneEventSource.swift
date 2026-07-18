@@ -9,11 +9,13 @@ public final class MicrophoneEventSource {
     private let startedAt: ContinuousClock.Instant
     private let handler: @Sendable (PresentationEvent) -> Void
     private let analyzer: LockedAudioAnalyzer
+    private let transcriber: (any TranscriptionProviding)?
     private var isRunning = false
 
     public init(
         sessionID: UUID,
         speechThresholdDB: Double = -42,
+        transcriber: (any TranscriptionProviding)? = nil,
         handler: @escaping @Sendable (PresentationEvent) -> Void
     ) {
         self.engine = AVAudioEngine()
@@ -21,10 +23,12 @@ public final class MicrophoneEventSource {
         self.startedAt = .now
         self.handler = handler
         self.analyzer = LockedAudioAnalyzer(speechThresholdDB: speechThresholdDB)
+        self.transcriber = transcriber
     }
 
     public func start() throws {
         guard !isRunning else { return }
+        try transcriber?.start()
 
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
@@ -32,8 +36,10 @@ public final class MicrophoneEventSource {
         let startedAt = startedAt
         let handler = handler
         let analyzer = analyzer
+        let transcriber = transcriber
 
         input.installTap(onBus: 0, bufferSize: 960, format: format) { buffer, _ in
+            transcriber?.append(buffer)
             guard let channel = buffer.floatChannelData?.pointee else { return }
             let samples = Array(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength)))
             let metric = analyzer.analyze(samples: samples, sampleRate: format.sampleRate)
@@ -51,7 +57,13 @@ public final class MicrophoneEventSource {
         }
 
         engine.prepare()
-        try engine.start()
+        do {
+            try engine.start()
+        } catch {
+            input.removeTap(onBus: 0)
+            transcriber?.stop()
+            throw error
+        }
         isRunning = true
     }
 
@@ -59,6 +71,7 @@ public final class MicrophoneEventSource {
         guard isRunning else { return }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+        transcriber?.stop()
         isRunning = false
     }
 }
