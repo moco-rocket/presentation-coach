@@ -1,7 +1,7 @@
 import Foundation
 import PresentationContracts
 
-public struct SessionEvaluationMetrics: Equatable, Sendable {
+public struct SessionEvaluationMetrics: Codable, Equatable, Sendable {
     public var plannedDurationSeconds: Int
     public var actualDurationSeconds: Int
     public var spokenDurationSeconds: Int
@@ -38,7 +38,7 @@ public struct SessionEvaluationMetrics: Equatable, Sendable {
     }
 }
 
-public struct PresentationScoreReport: Equatable, Sendable {
+public struct PresentationScoreReport: Codable, Equatable, Sendable {
     public var categories: [ScoreUpdate]
 
     public init(categories: [ScoreUpdate]) {

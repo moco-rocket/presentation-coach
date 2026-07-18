@@ -1,25 +1,79 @@
 import Foundation
 import PresentationContracts
 
-public struct SessionReport: Equatable, Sendable {
-    public let session: SessionDescriptor
-    public let metrics: SessionEvaluationMetrics
-    public let score: PresentationScoreReport
-    public let startedAtMs: Int64
-    public let endedAtMs: Int64
+public struct SessionEvidence: Codable, Equatable, Identifiable, Sendable {
+    public enum Kind: String, Codable, Sendable {
+        case transcript
+        case slide
+        case reaction
+    }
+
+    public var id: UUID
+    public var timestampMs: Int64
+    public var kind: Kind
+    public var text: String
+
+    public init(id: UUID = UUID(), timestampMs: Int64, kind: Kind, text: String) {
+        self.id = id
+        self.timestampMs = timestampMs
+        self.kind = kind
+        self.text = text
+    }
+}
+
+public struct EvaluatedInsight: Codable, Equatable, Identifiable, Sendable {
+    public var id: UUID
+    public var text: String
+    public var evidence: SessionEvidence
+
+    public init(id: UUID = UUID(), text: String, evidence: SessionEvidence) {
+        self.id = id
+        self.text = text
+        self.evidence = evidence
+    }
+}
+
+public struct QualitativeEvaluation: Codable, Equatable, Sendable {
+    public var strengths: [EvaluatedInsight]
+    public var improvements: [EvaluatedInsight]
+    public var nextActions: [EvaluatedInsight]
+
+    public init(
+        strengths: [EvaluatedInsight],
+        improvements: [EvaluatedInsight],
+        nextActions: [EvaluatedInsight]
+    ) {
+        self.strengths = strengths
+        self.improvements = improvements
+        self.nextActions = nextActions
+    }
+}
+
+public struct SessionReport: Codable, Equatable, Sendable {
+    public var session: SessionDescriptor
+    public var metrics: SessionEvaluationMetrics
+    public var score: PresentationScoreReport
+    public var startedAtMs: Int64
+    public var endedAtMs: Int64
+    public var evidence: [SessionEvidence]
+    public var qualitativeEvaluation: QualitativeEvaluation?
 
     public init(
         session: SessionDescriptor,
         metrics: SessionEvaluationMetrics,
         score: PresentationScoreReport,
         startedAtMs: Int64,
-        endedAtMs: Int64
+        endedAtMs: Int64,
+        evidence: [SessionEvidence] = [],
+        qualitativeEvaluation: QualitativeEvaluation? = nil
     ) {
         self.session = session
         self.metrics = metrics
         self.score = score
         self.startedAtMs = startedAtMs
         self.endedAtMs = endedAtMs
+        self.evidence = evidence
+        self.qualitativeEvaluation = qualitativeEvaluation
     }
 }
 
@@ -84,8 +138,36 @@ public enum SessionReportBuilder {
             metrics: metrics,
             score: PresentationScorer().score(metrics),
             startedAtMs: started.timestampMs,
-            endedAtMs: endedAtMs
+            endedAtMs: endedAtMs,
+            evidence: makeEvidence(from: ordered, fallbackSpeechSegments: speechSegments)
         )
+    }
+
+    private static func makeEvidence(
+        from events: [PresentationEvent],
+        fallbackSpeechSegments: [SpeechSegment]
+    ) -> [SessionEvidence] {
+        var evidence = events.compactMap { event -> SessionEvidence? in
+            switch event.payload {
+            case let .speech(segment) where event.kind == .speechFinal:
+                return SessionEvidence(timestampMs: event.timestampMs, kind: .transcript, text: segment.text)
+            case let .slideChange(slide):
+                guard let text = slide.ocrText, !text.isEmpty else { return nil }
+                return SessionEvidence(timestampMs: event.timestampMs, kind: .slide, text: text)
+            case let .judgeReaction(reaction):
+                return SessionEvidence(timestampMs: event.timestampMs, kind: .reaction, text: reaction.text)
+            default:
+                return nil
+            }
+        }
+        if !fallbackSpeechSegments.isEmpty && !evidence.contains(where: { $0.kind == .transcript }) {
+            evidence.append(contentsOf: fallbackSpeechSegments.map {
+                SessionEvidence(timestampMs: $0.startedAtMs, kind: .transcript, text: $0.text)
+            })
+        }
+        return Array(evidence
+            .sorted { $0.timestampMs < $1.timestampMs }
+            .suffix(60))
     }
 
     private static func countLongSilences(in events: [PresentationEvent]) -> Int {

@@ -49,11 +49,54 @@ private struct SessionResultView: View {
                         .overlay(RoundedRectangle(cornerRadius: 14).stroke(.black, lineWidth: 2))
                     }
                 }
+
+                if let evaluation = report.qualitativeEvaluation {
+                    VStack(spacing: 12) {
+                        insightSection("よかった点", icon: "hand.thumbsup.fill", color: .green, insights: evaluation.strengths)
+                        insightSection("改善ポイント", icon: "wrench.and.screwdriver.fill", color: .orange, insights: evaluation.improvements)
+                        insightSection("次回のミッション", icon: "flag.checkered", color: .blue, insights: evaluation.nextActions)
+                    }
+                } else {
+                    Text("AI講評は利用できませんでした。計測スコアと根拠は保存されています。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(28)
         }
         .frame(width: 560, height: 680)
         .background(Color(red: 0.94, green: 0.97, blue: 1))
+    }
+
+    private func insightSection(
+        _ title: String,
+        icon: String,
+        color: Color,
+        insights: [EvaluatedInsight]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: icon)
+                .font(.title3.bold())
+                .foregroundStyle(color)
+            ForEach(insights) { insight in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(insight.text).font(.body.weight(.semibold))
+                    Text("\(timestamp(insight.evidence.timestampMs))  \(insight.evidence.text)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(14)
+        .background(.white, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(.black, lineWidth: 2))
+    }
+
+    private func timestamp(_ milliseconds: Int64) -> String {
+        let seconds = max(0, milliseconds / 1_000)
+        return String(format: "%02lld:%02lld", seconds / 60, seconds % 60)
     }
 }
 
