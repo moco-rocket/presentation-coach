@@ -17,6 +17,7 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
     private var permissionGuideController: PermissionGuideWindowController?
     private var resultWindowController: SessionResultWindowController?
     private var historyWindowController: SessionHistoryWindowController?
+    private var setupWindowController: PracticeSetupWindowController?
     private var practiceTask: Task<Void, Never>?
     private var isPracticeRunning = false
     private var hasShutDown = false
@@ -121,8 +122,12 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
     private func installMenuBarController() {
         let permissionGuideController = PermissionGuideWindowController()
         let historyWindowController = SessionHistoryWindowController()
+        let setupWindowController = PracticeSetupWindowController { [weak self] setup in
+            self?.beginPractice(setup)
+        }
         self.permissionGuideController = permissionGuideController
         self.historyWindowController = historyWindowController
+        self.setupWindowController = setupWindowController
         menuBarController = MenuBarController(
             onStart: { [weak self] in self?.startPractice() },
             onStop: { [weak self] in self?.stopPractice() },
@@ -134,16 +139,19 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
 
     private func startPractice() {
         guard !isPracticeRunning, practiceTask == nil else { return }
+        setupWindowController?.show()
+    }
+
+    private func beginPractice(_ setup: PracticeSetup) {
+        guard !isPracticeRunning, practiceTask == nil else { return }
         practiceTask = Task { [weak self] in
             guard let self else { return }
             defer { practiceTask = nil }
             do {
-                try await liveCoordinator.start(descriptor: SessionDescriptor(
-                title: "発表練習",
-                goal: "",
-                audience: "",
-                plannedDurationSeconds: 0
-                ))
+                try await liveCoordinator.start(
+                    descriptor: setup.descriptor,
+                    displayID: setup.displayID
+                )
                 isPracticeRunning = true
                 overlayController.show()
                 menuBarController?.setSessionRunning(true)
@@ -197,6 +205,8 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
         resultWindowController = nil
         historyWindowController?.close()
         historyWindowController = nil
+        setupWindowController?.close()
+        setupWindowController = nil
     }
 
     private func showError(_ error: Error) {

@@ -15,6 +15,7 @@ final class LivePracticeCoordinator {
     private var pipeline: LivePracticePipeline?
     private var microphone: MicrophoneEventSource?
     private var screenCapture: ScreenCaptureSource?
+    private var timerTask: Task<Void, Never>?
 
     private(set) var recordingURL: URL?
 
@@ -28,7 +29,7 @@ final class LivePracticeCoordinator {
         self.reportStore = reportStore
     }
 
-    func start(descriptor: SessionDescriptor) async throws {
+    func start(descriptor: SessionDescriptor, displayID: UInt32 = CGMainDisplayID()) async throws {
         guard pipeline == nil else { throw LivePracticeCoordinatorError.alreadyRunning }
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
             throw LivePracticeCoordinatorError.microphonePermissionRequired
@@ -64,7 +65,7 @@ final class LivePracticeCoordinator {
 
         do {
             try microphone.start()
-            try await screenCapture.start(displayID: CGMainDisplayID()) { frame in
+            try await screenCapture.start(displayID: displayID) { frame in
                 guard let slide = try? await slideAnalyzer.analyze(frame) else { return }
                 try? await pipeline.ingest(PresentationEvent(
                     sessionID: sessionID,
@@ -84,9 +85,32 @@ final class LivePracticeCoordinator {
         self.microphone = microphone
         self.screenCapture = screenCapture
         self.recordingURL = recordingURL
+        timerTask = Task {
+            var elapsedSeconds = 0
+            while !Task.isCancelled {
+                try? await pipeline.ingest(PresentationEvent(
+                    sessionID: sessionID,
+                    timestampMs: Int64(elapsedSeconds) * 1_000,
+                    kind: .timerUpdated,
+                    payload: .timer(TimerUpdate(
+                        elapsedSeconds: elapsedSeconds,
+                        remainingSeconds: max(0, descriptor.plannedDurationSeconds - elapsedSeconds)
+                    ))
+                ))
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    return
+                }
+                elapsedSeconds += 1
+            }
+        }
     }
 
     func stop() async -> SessionReport? {
+        timerTask?.cancel()
+        await timerTask?.value
+        timerTask = nil
         microphone?.stop()
         microphone = nil
         await screenCapture?.stop()
