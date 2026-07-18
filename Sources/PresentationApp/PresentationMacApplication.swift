@@ -9,20 +9,23 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
     private let application: NSApplication
     private let viewModel: OverlayViewModel
     private let overlayController: OverlayPanelController
+    private let liveCoordinator: LivePracticeCoordinator
     private let timeline: FixtureTimeline?
 
     private var automaticTerminationTimer: Timer?
     private var menuBarController: MenuBarController?
     private var permissionGuideController: PermissionGuideWindowController?
-    private var liveSessionID: UUID?
-    private var liveSessionStartedAt: Date?
+    private var practiceTask: Task<Void, Never>?
+    private var isPracticeRunning = false
     private var hasShutDown = false
 
     init(configuration: ApplicationConfiguration) throws {
         self.configuration = configuration
         application = .shared
-        viewModel = OverlayViewModel()
+        let viewModel = OverlayViewModel()
+        self.viewModel = viewModel
         overlayController = OverlayPanelController(viewModel: viewModel)
+        liveCoordinator = LivePracticeCoordinator(viewModel: viewModel)
 
         if configuration.mode == .uiDemo {
             guard let fixtureURL = configuration.fixtureURL else {
@@ -64,8 +67,14 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
         }
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        shutDown()
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !hasShutDown else { return .terminateNow }
+        hasShutDown = true
+        Task { [weak self, weak sender] in
+            await self?.shutDown()
+            sender?.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     private func installMainMenu() {
@@ -119,46 +128,49 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
     }
 
     private func startPractice() {
-        guard liveSessionID == nil else { return }
-        let sessionID = UUID()
-        liveSessionID = sessionID
-        liveSessionStartedAt = Date()
-        viewModel.consume(PresentationEvent(
-            sessionID: sessionID,
-            timestampMs: 0,
-            kind: .sessionStarted,
-            payload: .session(SessionDescriptor(
+        guard !isPracticeRunning, practiceTask == nil else { return }
+        practiceTask = Task { [weak self] in
+            guard let self else { return }
+            defer { practiceTask = nil }
+            do {
+                try await liveCoordinator.start(descriptor: SessionDescriptor(
                 title: "発表練習",
                 goal: "",
                 audience: "",
                 plannedDurationSeconds: 0
-            ))
-        ))
-        overlayController.show()
-        menuBarController?.setSessionRunning(true)
+                ))
+                isPracticeRunning = true
+                overlayController.show()
+                menuBarController?.setSessionRunning(true)
+            } catch LivePracticeCoordinatorError.microphonePermissionRequired {
+                permissionGuideController?.show()
+            } catch {
+                showError(error)
+            }
+        }
     }
 
     private func stopPractice() {
-        guard let sessionID = liveSessionID else { return }
-        let elapsedMilliseconds = Int64(
-            max(0, Date().timeIntervalSince(liveSessionStartedAt ?? Date()) * 1_000)
-        )
-        viewModel.consume(PresentationEvent(
-            sessionID: sessionID,
-            timestampMs: elapsedMilliseconds,
-            kind: .sessionStopped,
-            payload: .none
-        ))
-        liveSessionID = nil
-        liveSessionStartedAt = nil
+        guard isPracticeRunning, practiceTask == nil else { return }
+        practiceTask = Task { [weak self] in
+            guard let self else { return }
+            await stopPracticeAndWait()
+            practiceTask = nil
+        }
+    }
+
+    private func stopPracticeAndWait() async {
+        await liveCoordinator.stop()
+        isPracticeRunning = false
         overlayController.hide()
         menuBarController?.setSessionRunning(false)
     }
 
-    private func shutDown() {
-        guard !hasShutDown else { return }
-        hasShutDown = true
-        stopPractice()
+    private func shutDown() async {
+        await practiceTask?.value
+        if isPracticeRunning {
+            await stopPracticeAndWait()
+        }
         automaticTerminationTimer?.invalidate()
         automaticTerminationTimer = nil
         timeline?.stop()
@@ -168,6 +180,11 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
         menuBarController = nil
         permissionGuideController?.close()
         permissionGuideController = nil
+    }
+
+    private func showError(_ error: Error) {
+        let alert = NSAlert(error: error)
+        alert.runModal()
     }
 }
 
