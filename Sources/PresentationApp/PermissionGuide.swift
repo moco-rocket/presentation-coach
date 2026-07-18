@@ -93,6 +93,7 @@ final class SystemPermissionService: PermissionServicing {
 final class PermissionGuideViewModel: ObservableObject {
     @Published private(set) var states: [PracticePermission: PermissionState] = [:]
     @Published private(set) var requesting: PracticePermission?
+    @Published private(set) var resultMessage: String?
     private let service: PermissionServicing
 
     init(service: PermissionServicing = SystemPermissionService()) {
@@ -109,12 +110,24 @@ final class PermissionGuideViewModel: ObservableObject {
     func request(_ permission: PracticePermission) async {
         guard requesting == nil else { return }
         requesting = permission
-        states[permission] = await service.request(permission)
+        let state = await service.request(permission)
+        states[permission] = state
+        switch state {
+        case .granted:
+            resultMessage = "\(permission.title)を許可しました。"
+        case .denied:
+            resultMessage = "\(permission.title)は許可されませんでした。システム設定から許可してください。"
+        case .restricted:
+            resultMessage = "\(permission.title)はこのMacの設定で制限されています。"
+        case .notDetermined:
+            resultMessage = "許可要求を完了できませんでした。開発用.appから起動しているか確認してください。"
+        }
         requesting = nil
     }
 
     func openSettings(for permission: PracticePermission) {
         service.openSettings(for: permission)
+        resultMessage = "システム設定で\(permission.title)を許可し、アプリへ戻って「状態を更新」を押してください。"
     }
 }
 
@@ -140,8 +153,12 @@ private struct PermissionGuideView: View {
                     }
                     Spacer()
                     if viewModel.states[permission] != .granted {
-                        Button("許可する") {
-                            Task { await viewModel.request(permission) }
+                        Button(primaryButtonTitle(for: permission)) {
+                            if viewModel.states[permission] == .denied {
+                                viewModel.openSettings(for: permission)
+                            } else {
+                                Task { await viewModel.request(permission) }
+                            }
                         }
                         .disabled(viewModel.requesting != nil)
                         Button("設定を開く") { viewModel.openSettings(for: permission) }
@@ -149,6 +166,12 @@ private struct PermissionGuideView: View {
                 }
                 .padding(12)
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+            }
+
+            if let resultMessage = viewModel.resultMessage {
+                Text(resultMessage)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
 
             HStack {
@@ -162,6 +185,10 @@ private struct PermissionGuideView: View {
 
     private func stateColor(for permission: PracticePermission) -> Color {
         viewModel.states[permission] == .granted ? .green : .orange
+    }
+
+    private func primaryButtonTitle(for permission: PracticePermission) -> String {
+        viewModel.states[permission] == .denied ? "設定で許可" : "許可する"
     }
 }
 

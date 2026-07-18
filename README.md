@@ -30,6 +30,6 @@ swift run PresentationApp --ui-demo
 
 引数なしで起動するとメニューバーに常駐します。メニューの「練習を開始」「練習を停止」からオーバーレイを操作できます。
 「権限を確認…」では、マイクと画面収録の状態確認、許可要求、システム設定への移動ができます。
-macOSの権限を実際に許可する場合は、安定したBundle IDと権限説明文を含む開発用`.app`が必要なため、`./scripts/run-app.sh`で起動してください。`swift run PresentationApp`は権限を使わないUI確認用です。
+通常起動とmacOS権限の確認には、安定したBundle IDと権限説明文を含む開発用`.app`が必要なため、`./scripts/run-app.sh`を使用してください。`swift run PresentationApp --ui-demo`はFixtureによるUI確認専用です。
 
 設計、分担、性能目標は [`plan.md`](plan.md) を参照してください。
