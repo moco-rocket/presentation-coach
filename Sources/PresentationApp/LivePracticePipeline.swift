@@ -9,6 +9,7 @@ actor LivePracticePipeline {
     let sessionID: UUID
     private let hub: SessionEventHub
     private let ruleEngine: RuleEngine
+    private var slidePacingTracker: SlidePacingTracker
     private let director: FeedbackDirector
     private let commentGenerator: (any CommentGenerating)?
     private let minimumLLMIntervalMs: Int64
@@ -32,6 +33,7 @@ actor LivePracticePipeline {
         sessionID: UUID = UUID(),
         recordingURL: URL? = nil,
         ruleEngine: RuleEngine = RuleEngine(),
+        slidePacingTracker: SlidePacingTracker = SlidePacingTracker(),
         director: FeedbackDirector = FeedbackDirector(),
         commentGenerator: (any CommentGenerating)? = nil,
         minimumLLMIntervalMs: Int64 = 3_000,
@@ -41,6 +43,7 @@ actor LivePracticePipeline {
         self.sessionID = sessionID
         hub = SessionEventHub(sessionID: sessionID, recordingURL: recordingURL)
         self.ruleEngine = ruleEngine
+        self.slidePacingTracker = slidePacingTracker
         self.director = director
         self.commentGenerator = commentGenerator
         self.minimumLLMIntervalMs = max(0, minimumLLMIntervalMs)
@@ -105,6 +108,7 @@ actor LivePracticePipeline {
         currentSlideOCR = nil
         remainingSeconds = 0
         recentDisplayedComments.removeAll()
+        slidePacingTracker.reset()
         await director.reset()
     }
 
@@ -119,7 +123,7 @@ actor LivePracticePipeline {
         scheduleLLMIfNeeded(for: event)
         guard shouldEvaluateRules(for: event) else { return }
 
-        let candidates = ruleEngine.candidates(for: event)
+        let candidates = ruleEngine.candidates(for: event) + slidePacingTracker.candidates(for: event)
         guard !candidates.isEmpty else { return }
 
         for candidate in candidates {
