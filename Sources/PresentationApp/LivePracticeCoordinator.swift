@@ -33,9 +33,11 @@ final class LivePracticeCoordinator {
         let sessionID = UUID()
         let recordingURL = recordingDirectory.appendingPathComponent("\(sessionID.uuidString).jsonl")
         let viewModel = self.viewModel
+        let commentGenerator = try? OpenAICommentGenerator.fromEnvironment()
         let pipeline = LivePracticePipeline(
             sessionID: sessionID,
-            recordingURL: recordingURL
+            recordingURL: recordingURL,
+            commentGenerator: commentGenerator
         ) { event in
             await MainActor.run { viewModel.consume(event) }
         }

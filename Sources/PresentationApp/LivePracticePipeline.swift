@@ -10,9 +10,19 @@ actor LivePracticePipeline {
     private let hub: SessionEventHub
     private let ruleEngine: RuleEngine
     private let director: FeedbackDirector
+    private let commentGenerator: (any CommentGenerating)?
+    private let minimumLLMIntervalMs: Int64
+    private let llmTimeoutMilliseconds: Int
     private let sink: EventSink
     private var eventTask: Task<Void, Never>?
+    private var llmTask: Task<Void, Never>?
     private var lastAudioRuleEvaluationMs: Int64?
+    private var lastLLMRequestMs: Int64?
+    private var descriptor: SessionDescriptor?
+    private var recentTranscript: [(timestampMs: Int64, text: String)] = []
+    private var currentSlideOCR: String?
+    private var remainingSeconds = 0
+    private var recentDisplayedComments: [String] = []
     private var isStopping = false
     private var pendingInputCount = 0
     private var drainContinuations: [CheckedContinuation<Void, Never>] = []
@@ -22,17 +32,25 @@ actor LivePracticePipeline {
         recordingURL: URL? = nil,
         ruleEngine: RuleEngine = RuleEngine(),
         director: FeedbackDirector = FeedbackDirector(),
+        commentGenerator: (any CommentGenerating)? = nil,
+        minimumLLMIntervalMs: Int64 = 3_000,
+        llmTimeoutMilliseconds: Int = 2_500,
         sink: @escaping EventSink
     ) {
         self.sessionID = sessionID
         hub = SessionEventHub(sessionID: sessionID, recordingURL: recordingURL)
         self.ruleEngine = ruleEngine
         self.director = director
+        self.commentGenerator = commentGenerator
+        self.minimumLLMIntervalMs = max(0, minimumLLMIntervalMs)
+        self.llmTimeoutMilliseconds = max(1, llmTimeoutMilliseconds)
         self.sink = sink
     }
 
     func start(descriptor: SessionDescriptor) async throws {
         guard eventTask == nil else { throw LivePracticePipelineError.alreadyStarted }
+        self.descriptor = descriptor
+        remainingSeconds = descriptor.plannedDurationSeconds
         let stream = await hub.events(bufferingNewest: 512)
         eventTask = Task { [weak self] in
             for await event in stream {
@@ -71,11 +89,20 @@ actor LivePracticePipeline {
         guard let eventTask else { throw LivePracticePipelineError.notStarted }
         isStopping = true
         await waitForInputsToDrain()
+        llmTask?.cancel()
+        await llmTask?.value
+        llmTask = nil
         _ = try await hub.stop()
         await eventTask.value
         self.eventTask = nil
         isStopping = false
         lastAudioRuleEvaluationMs = nil
+        lastLLMRequestMs = nil
+        descriptor = nil
+        recentTranscript.removeAll()
+        currentSlideOCR = nil
+        remainingSeconds = 0
+        recentDisplayedComments.removeAll()
         await director.reset()
     }
 
@@ -86,6 +113,8 @@ actor LivePracticePipeline {
             }
         }
         await sink(event)
+        updateLLMContext(with: event)
+        scheduleLLMIfNeeded(for: event)
         guard shouldEvaluateRules(for: event) else { return }
 
         let candidates = ruleEngine.candidates(for: event)
@@ -105,6 +134,98 @@ actor LivePracticePipeline {
                 payload: .judgeReaction(reaction),
                 timestampMs: event.timestampMs
             )
+        }
+    }
+
+    private func updateLLMContext(with event: PresentationEvent) {
+        switch event.payload {
+        case let .speech(segment) where event.kind == .speechFinal:
+            recentTranscript.append((event.timestampMs, segment.text))
+            recentTranscript.removeAll { event.timestampMs - $0.timestampMs > 30_000 }
+        case let .slideChange(slide):
+            currentSlideOCR = slide.ocrText
+        case let .timer(timer):
+            remainingSeconds = timer.remainingSeconds
+        case let .judgeReaction(reaction):
+            recentDisplayedComments.append(reaction.text)
+            recentDisplayedComments = Array(recentDisplayedComments.suffix(5))
+        default:
+            break
+        }
+    }
+
+    private func scheduleLLMIfNeeded(for event: PresentationEvent) {
+        guard event.kind == .speechFinal || event.kind == .slideChanged,
+              let commentGenerator,
+              let descriptor else { return }
+        if let lastLLMRequestMs,
+           event.timestampMs - lastLLMRequestMs < minimumLLMIntervalMs {
+            return
+        }
+
+        let transcript = recentTranscript.map(\.text).joined(separator: " ")
+        guard !transcript.isEmpty || !(currentSlideOCR ?? "").isEmpty else { return }
+        lastLLMRequestMs = event.timestampMs
+        let context = CommentGenerationContext(
+            requestedAtMs: event.timestampMs,
+            recentTranscript: transcript,
+            currentSlideOCR: currentSlideOCR,
+            session: descriptor,
+            remainingSeconds: remainingSeconds,
+            recentDisplayedComments: recentDisplayedComments
+        )
+        let hub = self.hub
+        let director = self.director
+        let timeoutMilliseconds = llmTimeoutMilliseconds
+
+        llmTask?.cancel()
+        llmTask = Task {
+            do {
+                let candidates = try await Self.generateWithTimeout(
+                    generator: commentGenerator,
+                    context: context,
+                    timeoutMilliseconds: timeoutMilliseconds
+                )
+                try Task.checkCancellation()
+                for candidate in candidates {
+                    _ = try await hub.emit(
+                        kind: .llmCommentCandidate,
+                        payload: .commentCandidate(candidate),
+                        timestampMs: context.requestedAtMs
+                    )
+                }
+                if let reaction = await director.select(from: candidates, at: context.requestedAtMs) {
+                    _ = try await hub.emit(
+                        kind: .judgeReaction,
+                        payload: .judgeReaction(reaction),
+                        timestampMs: context.requestedAtMs
+                    )
+                }
+            } catch {
+                // The deterministic rule lane remains active on timeout,
+                // cancellation, missing connectivity, and API failures.
+            }
+        }
+    }
+
+    private static func generateWithTimeout(
+        generator: any CommentGenerating,
+        context: CommentGenerationContext,
+        timeoutMilliseconds: Int
+    ) async throws -> [CommentCandidate] {
+        try await withThrowingTaskGroup(of: [CommentCandidate].self) { group in
+            group.addTask {
+                try await generator.generateComments(for: context)
+            }
+            group.addTask {
+                try await Task.sleep(for: .milliseconds(timeoutMilliseconds))
+                throw LivePracticePipelineError.llmTimeout
+            }
+            defer { group.cancelAll() }
+            guard let result = try await group.next() else {
+                throw LivePracticePipelineError.llmTimeout
+            }
+            return result
         }
     }
 
@@ -148,4 +269,5 @@ enum LivePracticePipelineError: Error, Equatable {
     case notStarted
     case sessionMismatch
     case stopping
+    case llmTimeout
 }
