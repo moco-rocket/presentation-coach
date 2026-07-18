@@ -1,7 +1,24 @@
 import CoreMedia
 import CoreVideo
+import CoreGraphics
 import Foundation
 @preconcurrency import ScreenCaptureKit
+
+public struct CaptureDisplay: Equatable, Identifiable, Sendable {
+    public var id: UInt32
+    public var name: String
+    public var width: Int
+    public var height: Int
+    public var isMain: Bool
+
+    public init(id: UInt32, name: String, width: Int, height: Int, isMain: Bool) {
+        self.id = id
+        self.name = name
+        self.width = width
+        self.height = height
+        self.isMain = isMain
+    }
+}
 
 public struct ScreenFrame: @unchecked Sendable {
     public let pixelBuffer: CVPixelBuffer
@@ -28,6 +45,28 @@ public final class ScreenCaptureSource {
     private var consumerTask: Task<Void, Never>?
 
     public init() {}
+
+    public static func availableDisplays() async throws -> [CaptureDisplay] {
+        let content = try await SCShareableContent.excludingDesktopWindows(
+            false,
+            onScreenWindowsOnly: true
+        )
+        let mainID = CGMainDisplayID()
+        return content.displays.enumerated().map { index, display in
+            let isMain = display.displayID == mainID
+            return CaptureDisplay(
+                id: display.displayID,
+                name: isMain ? "メインディスプレイ" : "ディスプレイ \(index + 1)",
+                width: display.width,
+                height: display.height,
+                isMain: isMain
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.isMain != rhs.isMain { return lhs.isMain }
+            return lhs.name < rhs.name
+        }
+    }
 
     public func start(displayID: UInt32, handler: @escaping FrameHandler) async throws {
         guard stream == nil else { return }
