@@ -20,6 +20,29 @@ import Testing
     #expect(decoded == manifest)
 }
 
+@Test func judgeArtworkSheetMapsJudgesAndEmotionsToExpectedCells() {
+    let tempoIdle = JudgeArtworkSheet.normalizedRect(for: .tempo, emotion: .idle)
+    let audienceSleepy = JudgeArtworkSheet.normalizedRect(for: .audience, emotion: .sleepy)
+
+    #expect(tempoIdle == CGRect(x: 0, y: 0.75, width: 0.2, height: 0.25))
+    #expect(audienceSleepy == CGRect(x: 0.8, y: 0, width: 0.2, height: 0.25))
+    #expect(
+        JudgeArtworkSheet.normalizedRect(for: .tempo, emotion: .happy)
+            == JudgeArtworkSheet.normalizedRect(for: .tempo, emotion: .impressed)
+    )
+    #expect(
+        JudgeArtworkSheet.normalizedRect(for: .clarity, emotion: .confused)
+            == JudgeArtworkSheet.normalizedRect(for: .clarity, emotion: .panic)
+    )
+}
+
+@MainActor
+@Test func bundledJudgeArtworkSheetLoadsForEveryJudge() {
+    for judgeID in JudgeID.allCases {
+        #expect(JudgeArtworkSheet.texture(for: judgeID, emotion: .idle) != nil)
+    }
+}
+
 @MainActor
 @Test func viewModelReflectsJudgeReactionAndTimer() throws {
     let manifests = try JudgeManifestLoader.bundled()
