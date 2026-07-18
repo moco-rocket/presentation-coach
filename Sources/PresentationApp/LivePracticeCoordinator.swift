@@ -3,6 +3,7 @@ import CoreGraphics
 import Foundation
 import PresentationCapture
 import PresentationContracts
+import PresentationFeedback
 import PresentationOverlay
 
 @MainActor
@@ -70,14 +71,17 @@ final class LivePracticeCoordinator {
         self.recordingURL = recordingURL
     }
 
-    func stop() async {
+    func stop() async -> SessionReport? {
         microphone?.stop()
         microphone = nil
         await screenCapture?.stop()
         screenCapture = nil
-        guard let pipeline else { return }
+        guard let pipeline else { return nil }
         try? await pipeline.stop()
         self.pipeline = nil
+        guard let recordingURL,
+              let events = try? JSONLEventReader.read(from: recordingURL) else { return nil }
+        return try? SessionReportBuilder.build(from: events)
     }
 
     private static func defaultRecordingDirectory() -> URL {

@@ -15,6 +15,7 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
     private var automaticTerminationTimer: Timer?
     private var menuBarController: MenuBarController?
     private var permissionGuideController: PermissionGuideWindowController?
+    private var resultWindowController: SessionResultWindowController?
     private var practiceTask: Task<Void, Never>?
     private var isPracticeRunning = false
     private var hasShutDown = false
@@ -155,22 +156,28 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
         guard isPracticeRunning, practiceTask == nil else { return }
         practiceTask = Task { [weak self] in
             guard let self else { return }
-            await stopPracticeAndWait()
+            await stopPracticeAndWait(showResult: true)
             practiceTask = nil
         }
     }
 
-    private func stopPracticeAndWait() async {
-        await liveCoordinator.stop()
+    private func stopPracticeAndWait(showResult: Bool) async {
+        let report = await liveCoordinator.stop()
         isPracticeRunning = false
         overlayController.hide()
         menuBarController?.setSessionRunning(false)
+        if showResult, let report {
+            let controller = SessionResultWindowController(report: report)
+            resultWindowController?.close()
+            resultWindowController = controller
+            controller.show()
+        }
     }
 
     private func shutDown() async {
         await practiceTask?.value
         if isPracticeRunning {
-            await stopPracticeAndWait()
+            await stopPracticeAndWait(showResult: false)
         }
         automaticTerminationTimer?.invalidate()
         automaticTerminationTimer = nil
@@ -181,6 +188,8 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
         menuBarController = nil
         permissionGuideController?.close()
         permissionGuideController = nil
+        resultWindowController?.close()
+        resultWindowController = nil
     }
 
     private func showError(_ error: Error) {
