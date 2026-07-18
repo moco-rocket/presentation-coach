@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import CoreGraphics
+import Security
 import SwiftUI
 
 enum PracticePermission: String, CaseIterable, Identifiable {
@@ -56,6 +57,11 @@ final class SystemPermissionService: PermissionServicing {
     }
 
     func request(_ permission: PracticePermission) async -> PermissionState {
+        guard developmentTeamIdentifier() != nil else {
+            showDevelopmentSignatureRequiredAlert()
+            return state(for: permission)
+        }
+
         switch permission {
         case .microphone:
             guard Bundle.main.object(forInfoDictionaryKey: "NSMicrophoneUsageDescription") != nil else {
@@ -86,6 +92,34 @@ final class SystemPermissionService: PermissionServicing {
         alert.informativeText = "swift runではmacOSの権限を登録できません。ターミナルで ./scripts/run-app.sh を実行してから、もう一度お試しください。"
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+
+    private func showDevelopmentSignatureRequiredAlert() {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Apple Development署名が必要です"
+        alert.informativeText = "このビルドはアドホック署名のため、macOSがマイク・画面収録の許可対象として登録できません。XcodeをインストールしてApple IDでサインインし、Apple Development証明書を作成してから ./scripts/run-app.sh を再実行してください。"
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    private func developmentTeamIdentifier() -> String? {
+        var code: SecCode?
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return nil }
+
+        var staticCode: SecStaticCode?
+        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess,
+              let staticCode else { return nil }
+
+        var information: CFDictionary?
+        let flags = SecCSFlags(rawValue: kSecCSSigningInformation)
+        guard SecCodeCopySigningInformation(staticCode, flags, &information) == errSecSuccess,
+              let dictionary = information as? [CFString: Any],
+              let teamIdentifier = dictionary[kSecCodeInfoTeamIdentifier] as? String,
+              !teamIdentifier.isEmpty else {
+            return nil
+        }
+        return teamIdentifier
     }
 }
 

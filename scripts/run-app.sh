@@ -29,9 +29,24 @@ mkdir -p "$contents_path/MacOS" "$contents_path/Resources"
 ditto "$binary_directory/PresentationApp" "$contents_path/MacOS/PresentationApp"
 ditto "$repository_root/Support/Info.plist" "$contents_path/Info.plist"
 
+signing_identity=${PRESENTATION_COACH_SIGNING_IDENTITY:-}
+if [[ -z "$signing_identity" ]]; then
+    signing_identity=$(security find-identity -v -p codesigning \
+        | sed -n 's/.*"\(Apple Development:[^"]*\)".*/\1/p' \
+        | head -1)
+fi
+
+if [[ -z "$signing_identity" ]]; then
+    signing_identity="-"
+    echo "Warning: Apple Development証明書がないため、アドホック署名で起動します。" >&2
+    echo "マイク・画面収録の許可にはXcodeでApple Development証明書を作成してください。" >&2
+else
+    echo "Signing with $signing_identity"
+fi
+
 codesign \
     --force \
-    --sign - \
+    --sign "$signing_identity" \
     --entitlements "$repository_root/Support/PresentationCoach.entitlements" \
     "$application_path"
 
