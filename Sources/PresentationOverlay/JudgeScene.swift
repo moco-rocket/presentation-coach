@@ -4,7 +4,7 @@ import SpriteKit
 
 @MainActor
 public final class JudgeScene: SKScene {
-    private var characterNodes: [JudgeID: PlaceholderJudgeNode] = [:]
+    private var characterNodes: [JudgeID: JudgeNode] = [:]
     private var manifests: [JudgeManifest] = []
 
     public init(manifests: [JudgeManifest]) {
@@ -36,7 +36,7 @@ public final class JudgeScene: SKScene {
         removeAllChildren()
         characterNodes.removeAll()
         for manifest in manifests {
-            let node = PlaceholderJudgeNode(manifest: manifest)
+            let node = JudgeNode(manifest: manifest)
             characterNodes[manifest.id] = node
             addChild(node)
         }
@@ -55,23 +55,85 @@ public final class JudgeScene: SKScene {
     }
 }
 
+enum JudgeArtworkSheet {
+    static let filename = "judges-expression-sheet-v1"
+    static let columnCount = 5
+    static let rowCount = 4
+
+    static func normalizedRect(for judgeID: JudgeID, emotion: ReactionEmotion) -> CGRect {
+        let rowFromTop: Int
+        switch judgeID {
+        case .tempo: rowFromTop = 0
+        case .clarity: rowFromTop = 1
+        case .slide: rowFromTop = 2
+        case .audience: rowFromTop = 3
+        }
+
+        let column: Int
+        switch emotion {
+        case .idle: column = 0
+        case .happy, .impressed: column = 1
+        case .curious: column = 2
+        case .confused, .panic: column = 3
+        case .sleepy: column = 4
+        }
+
+        return CGRect(
+            x: CGFloat(column) / CGFloat(columnCount),
+            y: CGFloat(rowCount - rowFromTop - 1) / CGFloat(rowCount),
+            width: 1 / CGFloat(columnCount),
+            height: 1 / CGFloat(rowCount)
+        )
+    }
+
+    @MainActor
+    static func texture(for judgeID: JudgeID, emotion: ReactionEmotion) -> SKTexture? {
+        guard let sheetTexture else { return nil }
+        let texture = SKTexture(rect: normalizedRect(for: judgeID, emotion: emotion), in: sheetTexture)
+        texture.filteringMode = .linear
+        return texture
+    }
+
+    @MainActor
+    private static let sheetTexture: SKTexture? = {
+        let url = Bundle.module.url(
+            forResource: filename,
+            withExtension: "png",
+            subdirectory: "Judges"
+        ) ?? Bundle.module.url(forResource: filename, withExtension: "png")
+        guard let url, let image = NSImage(contentsOf: url) else { return nil }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return texture
+    }()
+}
+
 @MainActor
-private final class PlaceholderJudgeNode: SKNode {
+private final class JudgeNode: SKNode {
+    private let judgeID: JudgeID
     private let bodyNode: SKShapeNode
     private let leftEye = SKShapeNode(circleOfRadius: 4)
     private let rightEye = SKShapeNode(circleOfRadius: 4)
     private let mouth = SKShapeNode()
     private let roleLabel: SKLabelNode
+    private let artworkNode: SKSpriteNode?
     private var emotion: ReactionEmotion = .idle
 
     init(manifest: JudgeManifest) {
+        judgeID = manifest.id
         bodyNode = SKShapeNode(rectOf: CGSize(width: 112, height: 92), cornerRadius: 30)
         roleLabel = SKLabelNode(text: manifest.displayName)
+        if let texture = JudgeArtworkSheet.texture(for: manifest.id, emotion: .idle) {
+            artworkNode = SKSpriteNode(texture: texture, size: CGSize(width: 190, height: 158))
+        } else {
+            artworkNode = nil
+        }
         super.init()
 
         bodyNode.fillColor = NSColor(hex: manifest.themeColorHex) ?? .systemPink
         bodyNode.strokeColor = .labelColor
         bodyNode.lineWidth = 5
+        bodyNode.isHidden = artworkNode != nil
         addChild(bodyNode)
 
         for eye in [leftEye, rightEye] {
@@ -86,6 +148,11 @@ private final class PlaceholderJudgeNode: SKNode {
         mouth.lineWidth = 4
         mouth.lineCap = .round
         bodyNode.addChild(mouth)
+
+        if let artworkNode {
+            artworkNode.position = CGPoint(x: 0, y: 8)
+            addChild(artworkNode)
+        }
 
         roleLabel.fontName = "HiraginoSans-W6"
         roleLabel.fontSize = 15
@@ -105,6 +172,7 @@ private final class PlaceholderJudgeNode: SKNode {
     func setEmotion(_ newEmotion: ReactionEmotion, animated: Bool) {
         guard newEmotion != emotion || !animated else { return }
         emotion = newEmotion
+        artworkNode?.texture = JudgeArtworkSheet.texture(for: judgeID, emotion: newEmotion)
         mouth.path = mouthPath(for: newEmotion)
 
         leftEye.yScale = newEmotion == .sleepy ? 0.18 : 1
