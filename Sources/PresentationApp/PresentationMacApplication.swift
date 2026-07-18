@@ -16,6 +16,7 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
     private var menuBarController: MenuBarController?
     private var permissionGuideController: PermissionGuideWindowController?
     private var resultWindowController: SessionResultWindowController?
+    private var historyWindowController: SessionHistoryWindowController?
     private var practiceTask: Task<Void, Never>?
     private var isPracticeRunning = false
     private var hasShutDown = false
@@ -119,11 +120,14 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
 
     private func installMenuBarController() {
         let permissionGuideController = PermissionGuideWindowController()
+        let historyWindowController = SessionHistoryWindowController()
         self.permissionGuideController = permissionGuideController
+        self.historyWindowController = historyWindowController
         menuBarController = MenuBarController(
             onStart: { [weak self] in self?.startPractice() },
             onStop: { [weak self] in self?.stopPractice() },
             onShowPermissions: { [weak permissionGuideController] in permissionGuideController?.show() },
+            onShowHistory: { [weak historyWindowController] in historyWindowController?.show() },
             onQuit: { [weak application] in application?.terminate(nil) }
         )
     }
@@ -144,7 +148,8 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
                 overlayController.show()
                 menuBarController?.setSessionRunning(true)
             } catch LivePracticeCoordinatorError.microphonePermissionRequired,
-                    LivePracticeCoordinatorError.screenRecordingPermissionRequired {
+                    LivePracticeCoordinatorError.screenRecordingPermissionRequired,
+                    LivePracticeCoordinatorError.speechRecognitionPermissionRequired {
                 permissionGuideController?.show()
             } catch {
                 showError(error)
@@ -190,6 +195,8 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
         permissionGuideController = nil
         resultWindowController?.close()
         resultWindowController = nil
+        historyWindowController?.close()
+        historyWindowController = nil
     }
 
     private func showError(_ error: Error) {

@@ -6,6 +6,7 @@ final class MenuBarController: NSObject {
     private let onStart: () -> Void
     private let onStop: () -> Void
     private let onShowPermissions: () -> Void
+    private let onShowHistory: () -> Void
     private let onQuit: () -> Void
 
     let statusMenuItem = NSMenuItem(title: "待機中", action: nil, keyEquivalent: "")
@@ -17,12 +18,14 @@ final class MenuBarController: NSObject {
         onStart: @escaping () -> Void,
         onStop: @escaping () -> Void,
         onShowPermissions: @escaping () -> Void = {},
+        onShowHistory: @escaping () -> Void = {},
         onQuit: @escaping () -> Void
     ) {
         statusItem = statusBar.statusItem(withLength: NSStatusItem.squareLength)
         self.onStart = onStart
         self.onStop = onStop
         self.onShowPermissions = onShowPermissions
+        self.onShowHistory = onShowHistory
         self.onQuit = onQuit
         super.init()
 
@@ -65,6 +68,10 @@ final class MenuBarController: NSObject {
         onShowPermissions()
     }
 
+    @objc func showHistory() {
+        onShowHistory()
+    }
+
     private func configureButton() {
         statusItem.button?.toolTip = "Presentation Coach — 待機中"
     }
@@ -84,6 +91,14 @@ final class MenuBarController: NSObject {
         menu.addItem(stopMenuItem)
 
         menu.addItem(.separator())
+        let historyMenuItem = NSMenuItem(
+            title: "練習履歴…",
+            action: #selector(showHistory),
+            keyEquivalent: ""
+        )
+        historyMenuItem.target = self
+        menu.addItem(historyMenuItem)
+
         let permissionMenuItem = NSMenuItem(
             title: "権限を確認…",
             action: #selector(showPermissions),

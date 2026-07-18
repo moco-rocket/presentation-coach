@@ -11,15 +11,21 @@ import Speech
 final class LivePracticeCoordinator {
     private let viewModel: OverlayViewModel
     private let recordingDirectory: URL
+    private let reportStore: SessionReportStore
     private var pipeline: LivePracticePipeline?
     private var microphone: MicrophoneEventSource?
     private var screenCapture: ScreenCaptureSource?
 
     private(set) var recordingURL: URL?
 
-    init(viewModel: OverlayViewModel, recordingDirectory: URL? = nil) {
+    init(
+        viewModel: OverlayViewModel,
+        recordingDirectory: URL? = nil,
+        reportStore: SessionReportStore = SessionReportStore()
+    ) {
         self.viewModel = viewModel
         self.recordingDirectory = recordingDirectory ?? Self.defaultRecordingDirectory()
+        self.reportStore = reportStore
     }
 
     func start(descriptor: SessionDescriptor) async throws {
@@ -95,6 +101,7 @@ final class LivePracticeCoordinator {
            let evaluation = try? await evaluator.evaluate(report) {
             report.qualitativeEvaluation = evaluation
         }
+        _ = try? reportStore.save(report)
         return report
     }
 
