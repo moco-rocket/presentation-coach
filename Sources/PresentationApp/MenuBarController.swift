@@ -5,6 +5,7 @@ final class MenuBarController: NSObject {
     private let statusItem: NSStatusItem
     private let onStart: () -> Void
     private let onStop: () -> Void
+    private let onShowPermissions: () -> Void
     private let onQuit: () -> Void
 
     let statusMenuItem = NSMenuItem(title: "待機中", action: nil, keyEquivalent: "")
@@ -15,11 +16,13 @@ final class MenuBarController: NSObject {
         statusBar: NSStatusBar = .system,
         onStart: @escaping () -> Void,
         onStop: @escaping () -> Void,
+        onShowPermissions: @escaping () -> Void = {},
         onQuit: @escaping () -> Void
     ) {
         statusItem = statusBar.statusItem(withLength: NSStatusItem.squareLength)
         self.onStart = onStart
         self.onStop = onStop
+        self.onShowPermissions = onShowPermissions
         self.onQuit = onQuit
         super.init()
 
@@ -52,6 +55,10 @@ final class MenuBarController: NSObject {
         onQuit()
     }
 
+    @objc func showPermissions() {
+        onShowPermissions()
+    }
+
     private func configureButton() {
         statusItem.button?.image = NSImage(
             systemSymbolName: "person.3.sequence.fill",
@@ -73,6 +80,15 @@ final class MenuBarController: NSObject {
         stopMenuItem.target = self
         stopMenuItem.action = #selector(stopPractice)
         menu.addItem(stopMenuItem)
+
+        menu.addItem(.separator())
+        let permissionMenuItem = NSMenuItem(
+            title: "権限を確認…",
+            action: #selector(showPermissions),
+            keyEquivalent: ""
+        )
+        permissionMenuItem.target = self
+        menu.addItem(permissionMenuItem)
 
         menu.addItem(.separator())
         let quitMenuItem = NSMenuItem(
