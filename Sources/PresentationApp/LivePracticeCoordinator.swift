@@ -44,7 +44,7 @@ final class LivePracticeCoordinator {
         let sessionID = UUID()
         let recordingURL = recordingDirectory.appendingPathComponent("\(sessionID.uuidString).jsonl")
         let viewModel = self.viewModel
-        let commentGenerator = try? OpenAICommentGenerator.fromEnvironment()
+        let commentGenerator = try? OpenAICommentGenerator.configured()
         let pipeline = LivePracticePipeline(
             sessionID: sessionID,
             recordingURL: recordingURL,
@@ -121,7 +121,7 @@ final class LivePracticeCoordinator {
         guard let recordingURL,
               let events = try? JSONLEventReader.read(from: recordingURL) else { return nil }
         guard var report = try? SessionReportBuilder.build(from: events) else { return nil }
-        if let evaluator = try? OpenAIReportEvaluator.fromEnvironment(),
+        if let evaluator = try? OpenAIReportEvaluator.configured(),
            let evaluation = try? await evaluator.evaluate(report) {
             report.qualitativeEvaluation = evaluation
         }

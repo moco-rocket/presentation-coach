@@ -7,6 +7,7 @@ final class MenuBarController: NSObject {
     private let onStop: () -> Void
     private let onShowPermissions: () -> Void
     private let onShowHistory: () -> Void
+    private let onShowLLMSettings: () -> Void
     private let onQuit: () -> Void
 
     let statusMenuItem = NSMenuItem(title: "待機中", action: nil, keyEquivalent: "")
@@ -19,6 +20,7 @@ final class MenuBarController: NSObject {
         onStop: @escaping () -> Void,
         onShowPermissions: @escaping () -> Void = {},
         onShowHistory: @escaping () -> Void = {},
+        onShowLLMSettings: @escaping () -> Void = {},
         onQuit: @escaping () -> Void
     ) {
         statusItem = statusBar.statusItem(withLength: NSStatusItem.squareLength)
@@ -26,6 +28,7 @@ final class MenuBarController: NSObject {
         self.onStop = onStop
         self.onShowPermissions = onShowPermissions
         self.onShowHistory = onShowHistory
+        self.onShowLLMSettings = onShowLLMSettings
         self.onQuit = onQuit
         super.init()
 
@@ -72,6 +75,10 @@ final class MenuBarController: NSObject {
         onShowHistory()
     }
 
+    @objc func showLLMSettings() {
+        onShowLLMSettings()
+    }
+
     private func configureButton() {
         statusItem.button?.toolTip = "Presentation Coach — 待機中"
     }
@@ -106,6 +113,14 @@ final class MenuBarController: NSObject {
         )
         permissionMenuItem.target = self
         menu.addItem(permissionMenuItem)
+
+        let llmSettingsMenuItem = NSMenuItem(
+            title: "LLMコメント設定…",
+            action: #selector(showLLMSettings),
+            keyEquivalent: ""
+        )
+        llmSettingsMenuItem.target = self
+        menu.addItem(llmSettingsMenuItem)
 
         menu.addItem(.separator())
         let quitMenuItem = NSMenuItem(

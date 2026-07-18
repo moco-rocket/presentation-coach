@@ -56,6 +56,21 @@ public struct OpenAIReportEvaluator: ReportEvaluating, Sendable {
         )
     }
 
+    public static func configured(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        store: any OpenAICredentialStoring = KeychainOpenAICredentialStore(),
+        loader: any HTTPDataLoading = URLSessionHTTPDataLoader()
+    ) throws -> OpenAIReportEvaluator {
+        guard let apiKey = try OpenAICredentialResolver.resolve(environment: environment, store: store) else {
+            throw OpenAIReportEvaluatorError.missingAPIKey
+        }
+        return try OpenAIReportEvaluator(
+            apiKey: apiKey,
+            model: environment["OPENAI_MODEL"] ?? "gpt-5-mini",
+            loader: loader
+        )
+    }
+
     public func evaluate(_ report: SessionReport) async throws -> QualitativeEvaluation {
         guard !report.evidence.isEmpty else { throw OpenAIReportEvaluatorError.insufficientEvidence }
         var request = URLRequest(url: endpoint)

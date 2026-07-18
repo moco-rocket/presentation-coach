@@ -74,6 +74,21 @@ public struct OpenAICommentGenerator: CommentGenerating, Sendable {
         )
     }
 
+    public static func configured(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        store: any OpenAICredentialStoring = KeychainOpenAICredentialStore(),
+        loader: any HTTPDataLoading = URLSessionHTTPDataLoader()
+    ) throws -> OpenAICommentGenerator {
+        guard let apiKey = try OpenAICredentialResolver.resolve(environment: environment, store: store) else {
+            throw OpenAICommentGeneratorError.missingAPIKey
+        }
+        return try OpenAICommentGenerator(
+            apiKey: apiKey,
+            model: environment["OPENAI_MODEL"] ?? "gpt-5-mini",
+            loader: loader
+        )
+    }
+
     public func generateComments(for context: CommentGenerationContext) async throws -> [CommentCandidate] {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
