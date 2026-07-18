@@ -90,7 +90,12 @@ final class LivePracticeCoordinator {
         self.pipeline = nil
         guard let recordingURL,
               let events = try? JSONLEventReader.read(from: recordingURL) else { return nil }
-        return try? SessionReportBuilder.build(from: events)
+        guard var report = try? SessionReportBuilder.build(from: events) else { return nil }
+        if let evaluator = try? OpenAIReportEvaluator.fromEnvironment(),
+           let evaluation = try? await evaluator.evaluate(report) {
+            report.qualitativeEvaluation = evaluation
+        }
+        return report
     }
 
     private static func defaultRecordingDirectory() -> URL {

@@ -7,7 +7,21 @@ import Testing
 
 private actor EventCollector {
     var events: [PresentationEvent] = []
-    func append(_ event: PresentationEvent) { events.append(event) }
+    private var waiters: [(PresentationEventKind, CheckedContinuation<Void, Never>)] = []
+
+    func append(_ event: PresentationEvent) {
+        events.append(event)
+        let matching = waiters.filter { $0.0 == event.kind }
+        waiters.removeAll { $0.0 == event.kind }
+        matching.forEach { $0.1.resume() }
+    }
+
+    func wait(for kind: PresentationEventKind) async {
+        guard !events.contains(where: { $0.kind == kind }) else { return }
+        await withCheckedContinuation { continuation in
+            waiters.append((kind, continuation))
+        }
+    }
 }
 
 @Test func livePipelineRecordsRulesAndJudgeReaction() async throws {
@@ -99,12 +113,15 @@ private struct HangingCommentGenerator: CommentGenerating {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     let recordingURL = directory.appendingPathComponent("llm.jsonl")
     let sessionID = UUID()
+    let collector = EventCollector()
     let pipeline = LivePracticePipeline(
         sessionID: sessionID,
         recordingURL: recordingURL,
         commentGenerator: ImmediateCommentGenerator(),
         minimumLLMIntervalMs: 0
-    ) { _ in }
+    ) { event in
+        await collector.append(event)
+    }
     try await pipeline.start(descriptor: SessionDescriptor(
         title: "ライブテスト", goal: "接続確認", audience: "開発者", plannedDurationSeconds: 60
     ))
@@ -114,7 +131,7 @@ private struct HangingCommentGenerator: CommentGenerating {
         kind: .slideChanged,
         payload: .slideChange(SlideChange(slideID: "slide-1", ocrText: "大事な結論"))
     ))
-    try await Task.sleep(for: .milliseconds(30))
+    await collector.wait(for: .llmCommentCandidate)
     try await pipeline.stop()
 
     let recorded = try JSONLEventReader.read(from: recordingURL)
