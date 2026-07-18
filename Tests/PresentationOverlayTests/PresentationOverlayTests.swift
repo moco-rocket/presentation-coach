@@ -163,7 +163,7 @@ import Testing
 }
 
 @MainActor
-@Test func fixtureTimelineSchedulesEventsOnMainRunLoop() async throws {
+@Test func fixtureTimelineSchedulesEventsOnMainRunLoop() throws {
     let sessionID = UUID()
     let events = [
         PresentationEvent(
@@ -183,7 +183,7 @@ import Testing
     var received: [PresentationEvent] = []
 
     try timeline.play { received.append($0) }
-    try await Task.sleep(for: .milliseconds(80))
+    RunLoop.main.run(until: Date().addingTimeInterval(0.5))
     timeline.stop()
 
     #expect(received == events)
