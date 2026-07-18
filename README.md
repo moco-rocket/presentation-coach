@@ -27,4 +27,6 @@ swift run PresentationApp --ui-demo
 
 `--ui-demo` は画面下部に透明オーバーレイを表示し、`Fixtures/Sessions/ui-demo.jsonl` の審査員リアクションを再生して自動終了します。素早く確認する場合は `--ui-demo-speed 10` を追加できます。
 
+引数なしで起動するとメニューバーに常駐します。メニューの「練習を開始」「練習を停止」からオーバーレイを操作できます。
+
 設計、分担、性能目標は [`plan.md`](plan.md) を参照してください。

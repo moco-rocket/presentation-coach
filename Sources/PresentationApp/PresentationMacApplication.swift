@@ -12,6 +12,9 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
     private let timeline: FixtureTimeline?
 
     private var automaticTerminationTimer: Timer?
+    private var menuBarController: MenuBarController?
+    private var liveSessionID: UUID?
+    private var liveSessionStartedAt: Date?
     private var hasShutDown = false
 
     init(configuration: ApplicationConfiguration) throws {
@@ -35,15 +38,19 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
     }
 
     func run() {
-        application.setActivationPolicy(configuration.mode == .uiDemo ? .accessory : .regular)
+        application.setActivationPolicy(.accessory)
         installMainMenu()
         application.delegate = self
         application.run()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        overlayController.show()
+        if configuration.mode == .idle {
+            installMenuBarController()
+            return
+        }
 
+        overlayController.show()
         guard let timeline else { return }
         do {
             try timeline.play(speed: configuration.playbackSpeed) { [weak viewModel] event in
@@ -99,14 +106,62 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func installMenuBarController() {
+        menuBarController = MenuBarController(
+            onStart: { [weak self] in self?.startPractice() },
+            onStop: { [weak self] in self?.stopPractice() },
+            onQuit: { [weak application] in application?.terminate(nil) }
+        )
+    }
+
+    private func startPractice() {
+        guard liveSessionID == nil else { return }
+        let sessionID = UUID()
+        liveSessionID = sessionID
+        liveSessionStartedAt = Date()
+        viewModel.consume(PresentationEvent(
+            sessionID: sessionID,
+            timestampMs: 0,
+            kind: .sessionStarted,
+            payload: .session(SessionDescriptor(
+                title: "発表練習",
+                goal: "",
+                audience: "",
+                plannedDurationSeconds: 0
+            ))
+        ))
+        overlayController.show()
+        menuBarController?.setSessionRunning(true)
+    }
+
+    private func stopPractice() {
+        guard let sessionID = liveSessionID else { return }
+        let elapsedMilliseconds = Int64(
+            max(0, Date().timeIntervalSince(liveSessionStartedAt ?? Date()) * 1_000)
+        )
+        viewModel.consume(PresentationEvent(
+            sessionID: sessionID,
+            timestampMs: elapsedMilliseconds,
+            kind: .sessionStopped,
+            payload: .none
+        ))
+        liveSessionID = nil
+        liveSessionStartedAt = nil
+        overlayController.hide()
+        menuBarController?.setSessionRunning(false)
+    }
+
     private func shutDown() {
         guard !hasShutDown else { return }
         hasShutDown = true
+        stopPractice()
         automaticTerminationTimer?.invalidate()
         automaticTerminationTimer = nil
         timeline?.stop()
         viewModel.clearReaction()
         overlayController.hide()
+        menuBarController?.remove()
+        menuBarController = nil
     }
 }
 
