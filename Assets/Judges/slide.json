@@ -1,0 +1,7 @@
+{
+  "id": "slide", "displayName": "スライド博士", "role": "画面の情報量と切り替えを観察する",
+  "themeColorHex": "#6BCB77", "accentColorHex": "#E9FBEA", "stageSlot": 2,
+  "bubbleAnchor": { "x": 0.625, "y": 0.88 },
+  "animations": { "idle": "slide_idle", "happy": "slide_bounce", "curious": "slide_zoom", "confused": "slide_tilt", "panic": "slide_shake", "sleepy": "slide_doze", "impressed": "slide_sparkle" },
+  "soundIDs": { "confused": "paper_rustle", "impressed": "sparkle" }
+}

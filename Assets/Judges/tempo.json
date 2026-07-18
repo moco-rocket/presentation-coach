@@ -1,0 +1,7 @@
+{
+  "id": "tempo", "displayName": "テンポ係", "role": "話速・間・残り時間を見守る",
+  "themeColorHex": "#FF6B6B", "accentColorHex": "#FFF4E6", "stageSlot": 0,
+  "bubbleAnchor": { "x": 0.125, "y": 0.88 },
+  "animations": { "idle": "tempo_idle", "happy": "tempo_bounce", "curious": "tempo_tilt", "confused": "tempo_tilt", "panic": "tempo_shake", "sleepy": "tempo_doze", "impressed": "tempo_bounce" },
+  "soundIDs": { "panic": "tick_fast", "happy": "pop_up" }
+}

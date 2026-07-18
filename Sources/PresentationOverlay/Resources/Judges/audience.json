@@ -1,0 +1,19 @@
+{
+  "id": "audience",
+  "displayName": "観客代表",
+  "role": "聞き手として疑問と納得を素直に返す",
+  "themeColorHex": "#4D96FF",
+  "accentColorHex": "#E8F2FF",
+  "stageSlot": 3,
+  "bubbleAnchor": { "x": 0.875, "y": 0.88 },
+  "animations": {
+    "idle": "audience_idle",
+    "happy": "audience_bounce",
+    "curious": "audience_tilt",
+    "confused": "audience_tilt",
+    "panic": "audience_shake",
+    "sleepy": "audience_doze",
+    "impressed": "audience_sparkle"
+  },
+  "soundIDs": { "happy": "small_clap", "curious": "question_pop" }
+}

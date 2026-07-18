@@ -1,0 +1,19 @@
+{
+  "id": "clarity",
+  "displayName": "明快さん",
+  "role": "言い回しと説明の分かりやすさを見る",
+  "themeColorHex": "#FFD93D",
+  "accentColorHex": "#FFF9D9",
+  "stageSlot": 1,
+  "bubbleAnchor": { "x": 0.375, "y": 0.88 },
+  "animations": {
+    "idle": "clarity_idle",
+    "happy": "clarity_bounce",
+    "curious": "clarity_tilt",
+    "confused": "clarity_spin",
+    "panic": "clarity_shake",
+    "sleepy": "clarity_doze",
+    "impressed": "clarity_sparkle"
+  },
+  "soundIDs": { "curious": "question_pop", "impressed": "sparkle" }
+}
