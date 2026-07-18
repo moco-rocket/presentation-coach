@@ -18,6 +18,7 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
     private var resultWindowController: SessionResultWindowController?
     private var historyWindowController: SessionHistoryWindowController?
     private var setupWindowController: PracticeSetupWindowController?
+    private var openAISettingsWindowController: OpenAISettingsWindowController?
     private var practiceTask: Task<Void, Never>?
     private var isPracticeRunning = false
     private var hasShutDown = false
@@ -125,14 +126,17 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
         let setupWindowController = PracticeSetupWindowController { [weak self] setup in
             self?.beginPractice(setup)
         }
+        let openAISettingsWindowController = OpenAISettingsWindowController()
         self.permissionGuideController = permissionGuideController
         self.historyWindowController = historyWindowController
         self.setupWindowController = setupWindowController
+        self.openAISettingsWindowController = openAISettingsWindowController
         menuBarController = MenuBarController(
             onStart: { [weak self] in self?.startPractice() },
             onStop: { [weak self] in self?.stopPractice() },
             onShowPermissions: { [weak permissionGuideController] in permissionGuideController?.show() },
             onShowHistory: { [weak historyWindowController] in historyWindowController?.show() },
+            onShowLLMSettings: { [weak openAISettingsWindowController] in openAISettingsWindowController?.show() },
             onQuit: { [weak application] in application?.terminate(nil) }
         )
     }
@@ -207,6 +211,8 @@ final class PresentationMacApplication: NSObject, NSApplicationDelegate {
         historyWindowController = nil
         setupWindowController?.close()
         setupWindowController = nil
+        openAISettingsWindowController?.close()
+        openAISettingsWindowController = nil
     }
 
     private func showError(_ error: Error) {

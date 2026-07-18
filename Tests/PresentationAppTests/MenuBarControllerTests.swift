@@ -9,12 +9,14 @@ import Testing
     var stopped = false
     var showedPermissions = false
     var showedHistory = false
+    var showedLLMSettings = false
     var quit = false
     let controller = MenuBarController(
         onStart: { started = true },
         onStop: { stopped = true },
         onShowPermissions: { showedPermissions = true },
         onShowHistory: { showedHistory = true },
+        onShowLLMSettings: { showedLLMSettings = true },
         onQuit: { quit = true }
     )
     defer { controller.remove() }
@@ -27,12 +29,14 @@ import Testing
     controller.stopPractice()
     controller.showPermissions()
     controller.showHistory()
+    controller.showLLMSettings()
     controller.quitApplication()
 
     #expect(started)
     #expect(stopped)
     #expect(showedPermissions)
     #expect(showedHistory)
+    #expect(showedLLMSettings)
     #expect(quit)
 }
 
