@@ -106,6 +106,7 @@ public enum ScreenCaptureSourceError: Error, Equatable {
 
 final class ScreenFrameOutput: NSObject, SCStreamOutput, @unchecked Sendable {
     private let handler: @Sendable (ScreenFrame) -> Void
+    private var firstTimestampSeconds: Double?
 
     init(handler: @escaping @Sendable (ScreenFrame) -> Void) {
         self.handler = handler
@@ -121,9 +122,13 @@ final class ScreenFrameOutput: NSObject, SCStreamOutput, @unchecked Sendable {
               sampleBuffer.isValid,
               let pixelBuffer = sampleBuffer.imageBuffer else { return }
         let timestamp = sampleBuffer.presentationTimeStamp.seconds
+        if firstTimestampSeconds == nil, timestamp.isFinite {
+            firstTimestampSeconds = timestamp
+        }
+        let relativeTimestamp = timestamp - (firstTimestampSeconds ?? timestamp)
         handler(ScreenFrame(
             pixelBuffer: pixelBuffer,
-            timestampMs: timestamp.isFinite ? Int64((timestamp * 1_000).rounded()) : 0,
+            timestampMs: relativeTimestamp.isFinite ? Int64((relativeTimestamp * 1_000).rounded()) : 0,
             width: CVPixelBufferGetWidth(pixelBuffer),
             height: CVPixelBufferGetHeight(pixelBuffer)
         ))
